@@ -1,5 +1,5 @@
 
-//#include "find.h"
+#include "find.h"
 #include "param.h"
 //#include "star_kernel.h"
 #include <stdio.h>
@@ -249,7 +249,7 @@ void __global__ find(unsigned long long  int *x,unsigned long long  int *new_x, 
 	 __shared__ unsigned long long  int tmp[SIZE_OF_LONG_INT];
 	 int pos,sh,p;
 	 int NNN;
-	 cuPrintf("in find\n");
+	 //cuPrintf("in find\n");
 	 return;
       NNN=blockDim.x;
 	 tmp[threadIdx.x] = get_bit_position(get_array(x,n,N),n);
