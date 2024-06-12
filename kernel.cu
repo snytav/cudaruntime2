@@ -2,7 +2,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-//#include "find.h"
+#include "find.h"
 
 #include <stdio.h>
 
@@ -109,7 +109,7 @@ cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
     cudaMalloc(&d_v, size_long_vec*sizeof(unsigned long long));
     cudaMemcpy(d_v, h_v, size_long_vec * sizeof(unsigned long long), cudaMemcpyHostToDevice);
    
-    
+    find <<<1, 1 >>> (d_v, d_res, 1);
 
     cudaMemcpy(&h_res, d_res, sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
