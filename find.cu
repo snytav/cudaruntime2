@@ -250,7 +250,7 @@ void __global__ find(unsigned long long  int *x,unsigned long long  int *new_x, 
 	 int pos,sh,p;
 	 int NNN;
 	 cuPrintf("in find\n");
-	 return;
+	 //return;
       NNN=blockDim.x;
 	 tmp[threadIdx.x] = get_bit_position(get_array(x,n,N),n);
 
