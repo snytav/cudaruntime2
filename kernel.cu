@@ -11,6 +11,20 @@
 #include "cuPrintf.cu"
 
 
+__host__ __device__  int position_in_64bit_word(int num, int div)
+{
+	int res = num % div, t;
+
+	if (num == 0) return 0;
+
+	t = (res > 0) ? (num % div) : div;
+	//printf("shift num %d div %d res %d t %d\n ",num,div,res,t);
+
+	return  t;
+}
+
+
+
 //редукция большого массива 64-разрядных целых к массиву размером в 64 раза меньше,
 //где каждому целому числу изначального массива соответствует 1 бит, ненулевой если
 //в соответсвующем элементе исходного массива был хотя бы один ненулевлй бит
@@ -28,14 +42,15 @@ __device__ unsigned long long int get_bit_position(unsigned long long  int x, in
 
 // позиция первого ненулевого бита в 64-разрядном целом числе
 	pos = __ffsll(x);
-	cuPrintf("__ffsll %d \n",pos);
-	return pos;
+	//cuPrintf("__ffsll %d \n",pos);
+	//return pos;
 
 
-	//printf("get_bit_position pos %d x %llu n %d \n",pos,x,n);
+	cuPrintf("get_bit_poition pos %d x %llu n %d \n",pos,x,n);
 
 	//элементы массива нумеруются с нуля, биты с единицы
-//	sh = position_in_64bit_word(n + 1, SIZE_OF_LONG_INT);
+	sh = position_in_64bit_word(n + 1, SIZE_OF_LONG_INT);
+	cuPrintf("sh %d\n");
 	//флаг наличия в векторе x хотя бы одного ненулевого бита
 //	set_given_bit_to_position(&p, pos && 1, sh);
 	//if(n >= 32)
@@ -82,7 +97,7 @@ __global__ void addKernel()
 
 int main()
 {
-	unsigned long long * x, * new_x, n = 1,h_v = 61680;
+	unsigned long long * x, * new_x, n = 1,h_v = 61568;
 
 	cudaMalloc(&x, sizeof(unsigned long long));
 	cudaMemcpy(x, &h_v, sizeof(unsigned long long), cudaMemcpyHostToDevice);
