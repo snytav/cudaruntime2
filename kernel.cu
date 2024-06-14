@@ -101,6 +101,8 @@ __device__ unsigned long long int get_bit_position(unsigned long long  int x, in
 	cuPrintf("get_bit_position pos %d x %lx n %d \n",pos,x,n);
 
 	//элементы массива нумеруются с нуля, биты с единицы
+	//позиция единицы(или не единицы), говорящей о наличии единицы в этом слове 
+	//в итоговом 64-битном слове, представляющем собой сводку по всему массиву
 	sh = position_in_64bit_word(n + 1, SIZE_OF_LONG_INT);
 	cuPrintf("sh %d\n",sh);
 	//флаг наличия в векторе x хотя бы одного ненулевого бита
@@ -121,9 +123,10 @@ __device__ unsigned long long int get_bit_position(unsigned long long  int x, in
 }
 
 //возвращает элемент массива, если нет выход за границу
-__device__ unsigned long long int get_array(unsigned long long  int* x, int n, int size)
+__device__ unsigned long long get_array(unsigned long long  int* x, int n, int size)
 {
-	//   if(n >= 32) printf("n %d size %d (n < size) %d reurn %llu \n",n,size,(n < size),((n < size) ? x[n] : 0));
+	cuPrintf("n %d size %d (n < size) %d return %lx \n",n,size,(n < size),((n < size) ? x[n] : 0));
+	cuPrintf("get_array 0 %lx 1 %lx 2 %lx \n", x[0], x[1], x[2]);
 	return ((n < size) ? x[n] : 0);
 }
 
@@ -134,7 +137,7 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 	__shared__ unsigned long long  int tmp[SIZE_OF_LONG_INT];
 	int pos, sh, p;
 	int NNN;
-	cuPrintf("in find %lx n %u \n",*x,n);
+	cuPrintf("in find %lx n %u get_array %lx \n",*x,n, get_array(x, n, N));
 	NNN = blockDim.x;
 	tmp[threadIdx.x] = get_bit_position(get_array(x, n, N), n);
 	cuPrintf("tmp[threadIdx.x] %lx \n", tmp[threadIdx.x]);
@@ -152,16 +155,18 @@ __global__ void addKernel()
 
 int main()
 {
-	unsigned long long* x, * new_x, n = 1, h_v = 576460752303423488;// 61568;
+	unsigned long long* x, * new_x, n = 4,
 
-	cudaMalloc(&x, sizeof(unsigned long long));
-	cudaMemcpy(x, &h_v, sizeof(unsigned long long), cudaMemcpyHostToDevice);
+		h_v[] = { 0,0xABCDABCDABCD0000, 0x0F08000800080008, 61568 };
+
+	cudaMalloc(&x, n*sizeof(unsigned long long));
+	cudaMemcpy(x, &h_v, n*sizeof(unsigned long long), cudaMemcpyHostToDevice);
 
 	cudaMalloc(&new_x, sizeof(unsigned long long));
     cudaPrintfInit();
 
-    addKernel << <1, 10 >> > ();
-	find << <1, 1 >> > (x,new_x,n);
+    //addKernel << <1, 10 >> > ();
+	find << <1, 4 >> > (x,new_x,n);
     cudaPrintfDisplay(stdout, true);
     cudaPrintfEnd();
     return 0;
