@@ -2,6 +2,8 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
+typedef unsigned long long int* LongPointer;
+
 //#include "find.h"
 #define SIZE_OF_LONG_INT 64
 
@@ -9,6 +11,31 @@
 
 #include "cuPrintf.cuh"
 #include "cuPrintf.cu"
+
+#define LEVELS 10
+#define OPT_THREADS 128
+#define OPT_REDUCE
+
+//actual length of a column (in bits)
+//M*LENGTH1=2^25 <-ОГРАНИЧЕНИЕ ПО ПАМЯТИ
+// M>20 ТОЛЬКО ЧАСТЬ ТАБЛИЦЫ, ОСТАЛЬНОЕ ПЕРЕБЕРАЕТСЯ ДОБАВЛЕНИЕМ СТРОКИ
+#define LENGTH1 (4*64)
+
+
+//#define fff
+//#define QQQ
+const int NN2 = (LENGTH1 - 1) / 64 + 1;
+int threads2 = (OPT_THREADS < NN2) ? OPT_THREADS : NN2;
+int blocks2 = (NN2 - 1) / threads2 + 1;
+
+#define N1 (((LENGTH1 % SIZE_OF_LONG_INT) ==0) ?  (LENGTH1/SIZE_OF_LONG_INT): (LENGTH1/SIZE_OF_LONG_INT+1))
+
+
+//    unsigned long long  int h_v[N],
+unsigned long long int* h_new_v;
+LongPointer  d_vfrst[LEVELS], d_vnumb[LEVELS];
+char** tb;
+
 
 // обрезка незначащих элементов у последнего слова
 //__host__ 
@@ -172,11 +199,197 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 	//,num[n]);
 }
 
-
-__global__ void addKernel()
+__global__ void copy_block(unsigned long long int* dv, unsigned long long int* dv0)
 {
-   
-    cuPrintf("add kernel\n");
+	__syncthreads();
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	if (tid < NN2)dv[tid] = dv0[tid];
+}
+
+
+__global__ void first_backward(LongPointer* d_v, int* d_first_non_zero, int level)
+{
+	int f[LEVELS];
+	unsigned long long int* dvl, u;
+	char lprt[100];
+
+	//	printf("inverse level %d \n",level);
+
+
+	f[level + 1] = 1;
+	while (level >= 0)
+	{
+		dvl = d_v[level];
+		int index1 = f[level + 1] - 1;// + (f[level+1]-1)*SIZE_OF_LONG_INT;
+		u = dvl[index1];
+#ifdef fff
+		long_to_binary(u, lprt, LENGTH1);
+		printf("element number %d at level %d %llu %s (numbers in array from 0, positions in bit sequence from 1)\n",
+			index, level + 1, u, lprt);
+#endif
+		f[level] = __ffsll(u) + index1 * SIZE_OF_LONG_INT;
+#ifdef fff
+		printf("level %d u %llu %s f[level] %d\n", level, u, lprt, f[level]);
+#endif
+		//        if(level == 0)return;
+				//printf("level %d f %d f[+1] %d\n",level,f[level],f[level+1]);
+		level--;
+	}
+	*d_first_non_zero = f[0];// + (f[1]-1)*SIZE_OF_LONG_INT;
+	if (*d_first_non_zero > LENGTH1) *d_first_non_zero = 0;
+#ifdef ffff
+	printf("d_first_non_zero %d  pointer= %p\n", *d_first_non_zero, d_first_non_zero);
+#endif
+}
+
+void reduce_array(unsigned long long  int* d_v1, unsigned long long  int* d_v, unsigned int size, unsigned int level, unsigned int N)
+{
+	//	char s1[1000],s2[1000];
+	unsigned long long int h_new_v[N1], h_v[N1];
+	cudaError_t err1;//,err0;
+
+	cudaError_t err = cudaGetLastError();
+	//	printf("errors at enter reduce_array %d\n",err);
+
+	unsigned int blocks, threads = (size < SIZE_OF_LONG_INT) ? size : SIZE_OF_LONG_INT;
+
+	cudaError_t err0 = cudaMemcpy(h_v, d_v, sizeof(unsigned long long  int) * size, cudaMemcpyDeviceToHost);
+	//	printf("size %d err %d %s  %p\n",size,err0,cudaGetErrorString(err0),d_v);
+
+	//		printf("size1 %d \n",size);
+
+	blocks = (int)ceil(((double)size) / threads);
+	printf("reduce_array#####  size %d blocks %d threads %d h_v[0] %llx h_v[1] %llx d\n",
+		size, blocks, threads, h_v[0], h_v[1]);
+
+	//cudaPrintfInit();
+//	test <<< 1, 1 >>> ();
+	//find<<<blocks,threads>>>(d_v,d_v1,size);
+	//cudaPrintfDisplay(stdout, true);
+//	cudaPrintfEnd();
+
+	//cudaDeviceSynchronize();
+
+	err1 = cudaGetLastError();
+
+	if (err1 != cudaSuccess)
+	{
+		//#ifdef frst
+		printf("kernel error %d %s size %d\n", err1, cudaGetErrorString(err1), size);
+		//#endif
+		exit(0);
+	}
+#ifdef frst
+	err0 = cudaMemcpy(h_new_v, d_v1, sizeof(unsigned long long  int) * size, cudaMemcpyDeviceToHost);
+	if (err0 != cudaSuccess)
+	{
+
+		printf("D2H error0 %d %s\n", err0, cudaGetErrorString(err0));
+		exit(0);
+	}
+	err1 = cudaMemcpy(h_v, d_v, sizeof(unsigned long long  int) * size, cudaMemcpyDeviceToHost);
+	//printf("h_new0 %ul\n",h_new_v[0]);
+	//err = cudaMemcpy(res,d_res,sizeof(int)*size,cudaMemcpyDeviceToHost);
+		//printf("h_new0 %ul\n",h_new_v[0]);
+	//err1 = cudaMemcpy(h_v,d_v,sizeof(unsigned long long  int)*size,cudaMemcpyDeviceToHost);
+
+
+	printf("D2H error %d %s\n", err1, cudaGetErrorString(err1));
+	FILE* f_res;
+	char fname[100];
+
+	sprintf(fname, "result%02d.dat", level);
+	if ((f_res = fopen(fname, "wt")) == NULL) return 0;
+	for (int i = 0; i < size; i++)
+	{
+		long_to_binary(h_v[i], s1);
+		long_to_binary(h_new_v[i], s2);
+		//printf("i %3d %s,%25llu res %d\n",i,s2,h_new_v[i],res[i]);
+		fprintf(f_res, "i %3d %s,%25llu result_vector %d init %s \n", i, s2, h_new_v[i], get_position_bit(h_new_v, i), s1);
+		// printf("i %3d %s,%25llu res %d\n",i,s2,h_new_v[i],res[i]);
+	}
+	fclose(f_res);
+#endif
+}
+
+
+
+int first(unsigned long long int* dv0, int size, int* d_first_non_zero, unsigned int N)
+{
+	static int frst = 1;
+	static LongPointer* dev_d_v;
+	int big_n = size, level = 0, n = 1;
+
+
+	cudaError_t err = cudaGetLastError(), err_m, err_c;
+#ifdef QQQ
+	char str[100];
+	print_device_bit_row("first0", dv0, big_n * SIZE_OF_LONG_INT, 0, N);
+#endif
+	//    cudaMemcpy(d_v[0],dv0,N*sizeof(unsigned long long  int),cudaMemcpyDeviceToDevice); //must be!!!
+	copy_block << <1, N >> > (d_vfrst[0], dv0);
+	cudaDeviceSynchronize();
+#ifdef QQQ
+	print_device_bit_column("first1", dv0, big_n * SIZE_OF_LONG_INT, N);
+	printf("errors at enter first %d\n", err);
+	printf("START n %3d big_n %3d level %d \n ", n, big_n, level);
+#endif
+	for (big_n = size; big_n > 1; big_n = (int)ceil((double)big_n / (double)SIZE_OF_LONG_INT))
+	{
+		n = (int)ceil((double)big_n / (double)SIZE_OF_LONG_INT);
+#ifdef QQQ
+		printf("n %3d big_n %3d level %d \n ", n, big_n, level);
+		cudaError_t err = cudaGetLastError();
+		printf("errors before reduce %d\n", err);
+
+		sprintf(str, "level%02d", level);
+		print_device_bit_column(str, dv[level], big_n * SIZE_OF_LONG_INT, N);
+#endif
+		reduce_array(d_vfrst[level + 1], d_vfrst[level], big_n, level, N);
+#ifdef QQQ
+		sprintf(str, "level%02d_result", level);
+		print_device_bit_column(str, dv[level + 1], big_n, N);
+		err = cudaGetLastError();
+		printf("errors at after reduce %d\n", err);
+#endif
+		level++;
+
+	}
+	// printf("FND: level=%i \t",level);
+	if (frst == 1)
+	{
+		err_m = cudaMalloc(&dev_d_v, sizeof(LongPointer) * LEVELS);
+		err_c = cudaMemcpy(dev_d_v, d_vfrst, sizeof(LongPointer) * LEVELS, cudaMemcpyHostToDevice);
+		frst = 0;
+	}
+
+#ifdef ffff
+	printf("malloc %d copy %d\n", err_m, err_c);
+#endif
+	err = cudaGetLastError();
+	//	   	printf("errors at before inverse %d %s\n",err,cudaGetErrorString(err));
+									//TODO: make a device copy of the d_v array and set it as 1st parameter of first_backward
+	//        puts("INVERSE");
+	first_backward << <1, 1 >> > (dev_d_v, d_first_non_zero, level);
+	cudaDeviceSynchronize();
+	err = cudaGetLastError();
+	//	    	       	    	printf("errors at after inverse %d %s\n",err,cudaGetErrorString(err));
+	//	    while(level >= 0)
+	//	    {
+	//	    	int h_first_non_zero;
+	//	    	cudaMemcpy(&h_first_non_zero,d_first_non_zero,sizeof(int),cudaMemcpyDeviceToHost);
+	//	    	printf("n %3d level %d first non-zero %5d \n",n,level,h_first_non_zero);
+	//	        first_non_zero<<<1,1>>>(d_v[level],d_first_non_zero,n,d_first_non_zero);
+	//
+	//
+	//	        cudaMemcpy(&h_first_non_zero,d_first_non_zero,sizeof(int),cudaMemcpyDeviceToHost);
+	//	        printf("n %3d level %d first non-zero %5d \n",n,level,h_first_non_zero);
+	//
+	//	        n *= SIZE_OF_LONG_INT;
+	//	        level--;
+	//	    }
+
+	return 0;
 }
 
 
