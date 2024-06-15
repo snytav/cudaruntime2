@@ -155,13 +155,13 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 
 	//     num[n] = pos;
 
-	return;
+	//return;
 	unsigned int n_minor;
 	n_minor = n / SIZE_OF_LONG_INT; // n_minor это позиция 64-битной последовательности в векторе результата, в левом массиве
 
 	sh = n % SIZE_OF_LONG_INT; //номер бита в отдельном элементе 64-битной послеждовательности
 	p = (pos && 1) << sh;
-	cuPrintf(  "threadIdx.x %d n %d n_minor %d size %d pos %d sh %d p %d pf %d new_xb %llu pos \n", threadIdx.x,
+	cuPrintf(  "threadIdx.x %d n %d n_minor %d size %d pos %d sh %d p %d pf %d new_xb %lx pos \n", threadIdx.x,
 		n, n_minor,
 		SIZE_OF_LONG_INT,
 		pos,
@@ -183,7 +183,7 @@ __global__ void addKernel()
 
 int main()
 {
-	unsigned long long* x, * new_x, n = 4,
+	unsigned long long* x, * new_x, n = 4,h_new_x,
 
 		h_v[] = { 0,0xABCDABCDABCD0000, 0x0F08000800080008, 61568 };
 
@@ -197,5 +197,8 @@ int main()
 	find << <1, 4 >> > (x,new_x,n);
     cudaPrintfDisplay(stdout, true);
     cudaPrintfEnd();
+	
+	cudaMemcpy(&h_new_x, new_x, sizeof(unsigned long long), cudaMemcpyDeviceToHost);
+	printf("find result %\lx \n",h_new_x);
     return 0;
 }
