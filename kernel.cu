@@ -144,9 +144,7 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 	//cuPrintf("get_bit_position");
 	gbp = get_bit_position(get_array(x, n, N), n);
 	cuPrintf("get_bit_position in find result  %lx \n",gbp);
-	cuPrintf("tmp before % tmp %lx %lx %lx %lx \n",
-		tmp[0], tmp[1], tmp[2], tmp[3]);
-
+	
 	tmp[threadIdx.x] = gbp;
 	cuPrintf("tmp at end %lx tmp %lx %lx %lx %lx \n", tmp[threadIdx.x],
 		                   tmp[0],tmp[1],tmp[2],tmp[3]);
