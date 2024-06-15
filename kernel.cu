@@ -150,7 +150,28 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 	tmp[threadIdx.x] = gbp;
 	cuPrintf("tmp at end %lx tmp %lx %lx %lx %lx \n", tmp[threadIdx.x],
 		                   tmp[0],tmp[1],tmp[2],tmp[3]);
+	//return;
+	pos = __ffsll(x[n]);
+
+	cuPrintf("pos in find %d \n", pos);
+
+	//     num[n] = pos;
+
 	return;
+	unsigned int n_minor;
+	n_minor = n / SIZE_OF_LONG_INT; // n_minor это позиция 64-битной последовательности в векторе результата, в левом массиве
+
+	sh = n % SIZE_OF_LONG_INT; //номер бита в отдельном элементе 64-битной послеждовательности
+	p = (pos && 1) << sh;
+	cuPrintf(  "threadIdx.x %d n %d n_minor %d size %d pos %d sh %d p %d pf %d new_xb %llu pos \n", threadIdx.x,
+		n, n_minor,
+		SIZE_OF_LONG_INT,
+		pos,
+		sh,
+		p, get_bit_position(x[n], n),
+		new_x[n_minor] 
+	           ); 
+	//,num[n]);
 }
 
 
