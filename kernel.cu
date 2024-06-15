@@ -119,6 +119,7 @@ __device__ unsigned long long int get_bit_position(unsigned long long  int x, in
 	//возвращаем часть элемента левого массива, сооотвествующую одному элементу правого массива
 	// (часть, потому что весь 64-разрядный элемент левого, укороченного массива должен содержать информацию о )
 	// 64-х соседних элементах правого массива
+	cuPrintf("get_bit_position returns %d \n",p);
 	return p;
 }
 
@@ -135,12 +136,20 @@ void __global__ find(unsigned long long* x, unsigned long long  int* new_x, unsi
 {
 	unsigned int n = threadIdx.x + blockIdx.x * blockDim.x;
 	__shared__ unsigned long long  int tmp[SIZE_OF_LONG_INT];
+	unsigned long long gbp;
 	int pos, sh, p;
 	int NNN;
 	cuPrintf("in find %lx n %u get_array %lx \n",*x,n, get_array(x, n, N));
 	NNN = blockDim.x;
-	tmp[threadIdx.x] = get_bit_position(get_array(x, n, N), n);
-	cuPrintf("tmp[threadIdx.x] %lx \n", tmp[threadIdx.x]);
+	//cuPrintf("get_bit_position");
+	gbp = get_bit_position(get_array(x, n, N), n);
+	cuPrintf("get_bit_position in find result  %lx \n",gbp);
+	cuPrintf("tmp before % tmp %lx %lx %lx %lx \n",
+		tmp[0], tmp[1], tmp[2], tmp[3]);
+
+	tmp[threadIdx.x] = gbp;
+	cuPrintf("tmp at end %lx tmp %lx %lx %lx %lx \n", tmp[threadIdx.x],
+		                   tmp[0],tmp[1],tmp[2],tmp[3]);
 	return;
 }
 
